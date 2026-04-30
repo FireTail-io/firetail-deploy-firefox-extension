@@ -101,6 +101,26 @@ type AMOApiUploadDetailResponse = {
 
 const PRODUCTION_ORIGIN = "https://addons.mozilla.org";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function sanitizePathSegment(value: string | number, name: string): string {
+  const str = String(value);
+  if (str.includes("/") || str.includes("\\") || str.includes("..")) {
+    throw new Error(
+      `Invalid ${name}: must not contain path separators or traversal sequences`,
+    );
+  }
+  return encodeURIComponent(str);
+}
+
+function validateUuid(value: string): string {
+  if (!UUID_REGEX.test(value)) {
+    throw new Error(`Invalid UUID format: ${value}`);
+  }
+  return value;
+}
+
 export class AMOClient {
   private auth: { issuer: string; secret: string };
   private origin: string;
@@ -129,7 +149,8 @@ export class AMOClient {
   }
 
   async getUpload(uuid: string): Promise<AMOApiUploadDetailResponse> {
-    const path = `/api/v5/addons/upload/${uuid}`;
+    const safeUuid = validateUuid(uuid);
+    const path = `/api/v5/addons/upload/${safeUuid}`;
 
     return this.proceed<AMOApiUploadDetailResponse>(path, "GET");
   }
@@ -140,7 +161,9 @@ export class AMOClient {
     source: Blob,
     license?: License,
   ): Promise<VersionDetailResponse> {
-    const path = `/api/v5/addons/addon/${addon}/versions/${version}/`;
+    const safeAddon = sanitizePathSegment(addon, "addon");
+    const safeVersion = sanitizePathSegment(version, "version");
+    const path = `/api/v5/addons/addon/${safeAddon}/versions/${safeVersion}/`;
     const form = new FormData();
     form.append("source", source, "source.zip");
     form.append("license", license);
@@ -149,25 +172,30 @@ export class AMOClient {
   }
 
   async createVersion(addon: number | string, opts: CreateVersionRequest) {
-    const path = `/api/v5/addons/addon/${addon}/versions/`;
+    const safeAddon = sanitizePathSegment(addon, "addon");
+    const path = `/api/v5/addons/addon/${safeAddon}/versions/`;
 
     return this.proceed<VersionDetailResponse>(path, "POST", opts);
   }
 
   async editVersion(addon: number | string, opts: UpdateVersionRequest) {
-    const path = `/api/v5/addons/addon/${addon}/versions/`;
+    const safeAddon = sanitizePathSegment(addon, "addon");
+    const path = `/api/v5/addons/addon/${safeAddon}/versions/`;
 
     return this.proceed<VersionDetailResponse>(path, "PATCH", opts);
   }
 
   async listVersion(addon: number | string): Promise<unknown> {
-    const path = `/api/v5/addons/addon/${addon}/versions/`;
+    const safeAddon = sanitizePathSegment(addon, "addon");
+    const path = `/api/v5/addons/addon/${safeAddon}/versions/`;
 
     return this.proceed<VersionDetailResponse[]>(path, "GET");
   }
 
   async getVersion(addon: number | string, version: number | string) {
-    const path = `/api/v5/addons/addon/${addon}/versions/${version}/`;
+    const safeAddon = sanitizePathSegment(addon, "addon");
+    const safeVersion = sanitizePathSegment(version, "version");
+    const path = `/api/v5/addons/addon/${safeAddon}/versions/${safeVersion}/`;
 
     return this.proceed<VersionDetailResponse>(path, "GET");
   }
@@ -176,7 +204,9 @@ export class AMOClient {
     addon: number | string,
     version: number | string,
   ): Promise<VersionDetailResponse | undefined> {
-    const path = `/api/v5/addons/addon/${addon}/versions/${version}/`;
+    const safeAddon = sanitizePathSegment(addon, "addon");
+    const safeVersion = sanitizePathSegment(version, "version");
+    const path = `/api/v5/addons/addon/${safeAddon}/versions/${safeVersion}/`;
 
     return this.proceedOrUndefined<VersionDetailResponse>(path, "GET");
   }
